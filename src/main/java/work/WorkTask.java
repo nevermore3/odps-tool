@@ -1,4 +1,5 @@
 package work;
+import com.google.gson.JsonObject;
 import com.vesoft.nebula.client.graph.data.ResultSet;
 import com.vesoft.nebula.client.graph.net.NebulaPool;
 import com.vesoft.nebula.client.graph.net.Session;
@@ -14,17 +15,22 @@ import java.util.*;
 public class WorkTask implements Runnable {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private long offset;
-    private Properties props;
+    private JsonObject jsonObject;
+    private JsonObject dataObject;
     private NebulaPool pool;
+    private long batchSize;
 
     private Session session = null;
     private Statement stmt = null;
 
-    public WorkTask(long offset, Properties props, NebulaPool pool) {
+    public WorkTask(long offset, JsonObject dataObject, JsonObject jsonObject, NebulaPool pool, long batchSize) {
         this.offset = offset;
-        this.props = props;
+        this.jsonObject = jsonObject;
+        this.dataObject = dataObject;
         this.pool = pool;
+        this.batchSize = batchSize;
     }
+
 
     private void insertTag(Map<String, Set<String>> tagMap) {
         long startTime = System.currentTimeMillis();
@@ -36,7 +42,7 @@ public class WorkTask implements Runnable {
                 StringBuilder ngql = new StringBuilder(size * 40);
                 ngql.append("INSERT VERTEX " + convertToTagName(tagType) + "(id) VALUES ");
                 for (String id : idSet) {
-                    ngql.append("hash('" + tagType + id + "'):('" + id + "'),");
+                    ngql.append("hash('" + tagType + "-" + id + "'):('" + id + "'),");
                 }
                 ngql.deleteCharAt(ngql.length() - 1);
                 ResultSet resp = session.execute(ngql.toString());
@@ -64,11 +70,11 @@ public class WorkTask implements Runnable {
                 Set<Map<String, String>> edgeInfos = entry.getValue();
                 int size = edgeInfos.size();
                 StringBuilder ngql = new StringBuilder(size * 100);
-                ngql.append("INSERT EDGE " + edgeType + "(type, name, begin, end, count) VALUES ");
+                ngql.append("INSERT EDGE " + edgeType + "(type, name, begin, end) VALUES ");
 
                 for (Map<String, String> edgeInfo : edgeInfos) {
-                    ngql.append("hash('" + edgeInfo.get("src") + "')->hash('" + edgeInfo.get("dst") + "'):");
-                    ngql.append("('" + edgeInfo.get("type") + "','" + edgeInfo.get("name") + "','" + edgeInfo.get("begin") + "','" + edgeInfo.get("end") + "','" + edgeInfo.get("count") + "'),");
+                    ngql.append("hash('" + edgeInfo.get("src") + "')->hash('" + edgeInfo.get("dst") + "')@" + edgeInfo.get("rank") + ":");
+                    ngql.append("('" + edgeInfo.get("type") + "','" + edgeInfo.get("name") + "','" + edgeInfo.get("begin") + "','" + edgeInfo.get("end") + "'),");
                 }
                 ngql.deleteCharAt(ngql.length() - 1);
                 ResultSet resp = session.execute(ngql.toString());
@@ -90,13 +96,10 @@ public class WorkTask implements Runnable {
     }
 
     private void doWork() {
-        String tableName = props.getProperty("tableName");
-        String partition = props.getProperty("partition");
-        int edgeCategory = Integer.parseInt(props.getProperty("edgeCategory"));
-        int batchSize = Integer.parseInt(props.getProperty("batchSize", "1000000"));
-        String sql = "SELECT id1_type, id1, id2_type, id2, gxlxdm, gxlxmc, gxkssj, gxjssj, gxcs FROM " + tableName + " WHERE fq_day = '" + partition + "' LIMIT " + offset + "," + batchSize;
+        int edgeCategory = jsonObject.getAsJsonObject("nebula").get("edgeCategory").getAsInt();
+        int insertSize = jsonObject.getAsJsonObject("nebula").get("insertSize").getAsInt();
+        String sql = dataObject.get("odpsDataSql").getAsString() + " LIMIT " + offset + "," + batchSize;
 
-        int insertSize = Integer.parseInt(props.getProperty("insertSize", "2000"));
         java.sql.ResultSet rs;
         try {
             rs = stmt.executeQuery(sql);
@@ -139,7 +142,10 @@ public class WorkTask implements Runnable {
                     String name = rs.getString("gxlxmc");
                     String begin = rs.getString("gxkssj");
                     String end = rs.getString("gxjssj");
-                    String count = rs.getString("gxcs");
+                    String rank = rs.getString("rank");
+                    if (rank == null) {
+                        logger.error("rank error, begin is : " + begin);
+                    }
 
                     if (edgeCategory == 0) {
                         edgeType = "e" + type.substring(0, type.indexOf("-"));
@@ -148,13 +154,13 @@ public class WorkTask implements Runnable {
                         edgeType = "e" + temp;
                     }
                     Map<String, String> edgeInfo = new HashMap<>(10);
-                    edgeInfo.put("src", id1_type + id1);
-                    edgeInfo.put("dst", id2_type + id2);
+                    edgeInfo.put("src", id1_type + "-" + id1);
+                    edgeInfo.put("dst", id2_type + "-" + id2);
                     edgeInfo.put("type", type);
                     edgeInfo.put("name", name);
                     edgeInfo.put("begin", begin);
                     edgeInfo.put("end", end);
-                    edgeInfo.put("count", count);
+                    edgeInfo.put("rank", rank);
 
                     if (edgeMap.containsKey(edgeType)) {
                         Set<Map<String, String>> edgeInfos = edgeMap.get(edgeType);
@@ -184,15 +190,17 @@ public class WorkTask implements Runnable {
         // odps connection
         Connection conn = null;
         try {
-            String accessId = props.getProperty("accessId");
-            String accessKey = props.getProperty("accessKey");
-            String jdbcUrl = props.getProperty("jdbcUrl");
+            JsonObject odpsObject = jsonObject.getAsJsonObject("odps");
+            String accessId = odpsObject.get("accessId").getAsString();
+            String accessKey = odpsObject.get("accessKey").getAsString();
+            String jdbcUrl = odpsObject.get("jdbcUrl").getAsString();
             conn = DriverManager.getConnection(jdbcUrl, accessId, accessKey);
             stmt = conn.createStatement();
 
-            String account = props.getProperty("account");
-            String password = props.getProperty("password");
-            String spaceName = props.getProperty("spaceName");
+            JsonObject nebulaObject = jsonObject.getAsJsonObject("nebula");
+            String account = nebulaObject.get("account").getAsString();
+            String password = nebulaObject.get("password").getAsString();
+            String spaceName = nebulaObject.get("spaceName").getAsString();
             session = pool.getSession(account, password, false);
             ResultSet resp = session.execute("use " + spaceName);
 
@@ -203,13 +211,13 @@ public class WorkTask implements Runnable {
         } finally {
             try {
                 stmt.close();
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
             try {
                 conn.close();
-            } catch (SQLException throwables) {
-                throwables.printStackTrace();
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
             if (session != null) {
                 session.release();
