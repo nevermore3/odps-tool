@@ -69,6 +69,9 @@ public class odps {
             }
 
             // get table's size
+            int flag = odpsObject.get("maxLinesFlag").getAsInt();
+            long maxLines = odpsObject.get("maxLines").getAsLong();
+            long lines;
             JsonArray dataArray = jsonObject.get("data").getAsJsonArray();
             for (int i = 0; i < dataArray.size(); ++i) {
                 JsonObject dataObject = dataArray.get(i).getAsJsonObject();
@@ -81,7 +84,10 @@ public class odps {
                     dataObject.addProperty("totalLines", 0);
                     continue;
                 }
-                long lines = rs.getInt(1);
+                lines = rs.getInt(1);
+                if (flag == 1 && lines > maxLines) {
+                    lines = maxLines;
+                }
                 logger.info("Table {} , total lines : {}", tableName, lines);
                 dataObject.addProperty("totalLines", lines);
             }
@@ -90,7 +96,7 @@ public class odps {
 
             for (int i = 0; i < dataArray.size(); ++i) {
                 JsonObject dataObject = dataArray.get(i).getAsJsonObject();
-                int totalLines = dataObject.get("totalLines").getAsInt();
+                long totalLines = dataObject.get("totalLines").getAsInt();
                 for (long offset = 0; offset < totalLines; offset += batchSize) {
                     threadPool.execute(new WorkTask(offset, dataObject, jsonObject, pool, batchSize));
                 }

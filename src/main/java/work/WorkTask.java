@@ -40,9 +40,9 @@ public class WorkTask implements Runnable {
                 Set<String> idSet = entry.getValue();
                 int size = idSet.size();
                 StringBuilder ngql = new StringBuilder(size * 40);
-                ngql.append("INSERT VERTEX " + convertToTagName(tagType) + "(id) VALUES ");
+                ngql.append("INSERT VERTEX " + tagType + "(id) VALUES ");
                 for (String id : idSet) {
-                    ngql.append("hash('" + tagType + "-" + id + "'):('" + id + "'),");
+                    ngql.append("hash('" + id + "'):('" + id + "'),");
                 }
                 ngql.deleteCharAt(ngql.length() - 1);
                 ResultSet resp = session.execute(ngql.toString());
@@ -96,7 +96,6 @@ public class WorkTask implements Runnable {
     }
 
     private void doWork() {
-        int edgeCategory = jsonObject.getAsJsonObject("nebula").get("edgeCategory").getAsInt();
         int insertSize = jsonObject.getAsJsonObject("nebula").get("insertSize").getAsInt();
         String sql = dataObject.get("odpsDataSql").getAsString() + " LIMIT " + offset + "," + batchSize;
 
@@ -137,7 +136,6 @@ public class WorkTask implements Runnable {
                     }
 
                     // process edge
-                    String edgeType;
                     String type = rs.getString("gxlxdm");
                     String name = rs.getString("gxlxmc");
                     String begin = rs.getString("gxkssj");
@@ -147,28 +145,23 @@ public class WorkTask implements Runnable {
                         logger.error("rank error, begin is : " + begin);
                     }
 
-                    if (edgeCategory == 0) {
-                        edgeType = "e" + type.substring(0, type.indexOf("-"));
-                    } else {
-                        String temp = type.replace("-", "_");
-                        edgeType = "e" + temp;
-                    }
+
                     Map<String, String> edgeInfo = new HashMap<>(10);
-                    edgeInfo.put("src", id1_type + "-" + id1);
-                    edgeInfo.put("dst", id2_type + "-" + id2);
+                    edgeInfo.put("src",  id1);
+                    edgeInfo.put("dst",  id2);
                     edgeInfo.put("type", type);
                     edgeInfo.put("name", name);
                     edgeInfo.put("begin", begin);
                     edgeInfo.put("end", end);
                     edgeInfo.put("rank", rank);
 
-                    if (edgeMap.containsKey(edgeType)) {
-                        Set<Map<String, String>> edgeInfos = edgeMap.get(edgeType);
+                    if (edgeMap.containsKey(type)) {
+                        Set<Map<String, String>> edgeInfos = edgeMap.get(type);
                         edgeInfos.add(edgeInfo);
                     } else {
                         Set<Map<String, String>> edgeInfos = new HashSet<>();
                         edgeInfos.add(edgeInfo);
-                        edgeMap.put(edgeType, edgeInfos);
+                        edgeMap.put(type, edgeInfos);
                     }
                     insertNum += 1;
                     if (insertNum == insertSize) {
