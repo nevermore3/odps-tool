@@ -50,7 +50,6 @@ public class WorkTask implements Runnable {
                     logger.error(resp.getErrorMessage());
                     logger.error("Run " + ngql);
                 }
-//                logger.info("Insert Vertex: {}, Size: {}", tagType, size);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -82,7 +81,6 @@ public class WorkTask implements Runnable {
                     logger.error(resp.getErrorMessage());
                     logger.error("Run " + ngql);
                 }
-//                logger.info("Insert Edge: {}, Size: {}", edgeType, size);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -153,7 +151,6 @@ public class WorkTask implements Runnable {
                         continue;
                     }
 
-
                     Map<String, String> edgeInfo = new HashMap<>(10);
                     edgeInfo.put("src",  id1);
                     edgeInfo.put("dst",  id2);
@@ -204,7 +201,10 @@ public class WorkTask implements Runnable {
             String spaceName = nebulaObject.get("spaceName").getAsString();
             session = pool.getSession(account, password, false);
             ResultSet resp = session.execute("use " + spaceName);
-
+            if (!resp.isSucceeded()) {
+                logger.error("NEBULA SPACE {} NOT EXISTS", spaceName);
+                System.exit(1);
+            }
             doWork();
         } catch (Exception e) {
             e.printStackTrace();

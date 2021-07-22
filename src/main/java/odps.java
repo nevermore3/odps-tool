@@ -72,10 +72,17 @@ public class odps {
             long maxLines = odpsObject.get("maxLines").getAsLong();
             long lines;
             JsonArray dataArray = jsonObject.get("data").getAsJsonArray();
+            boolean loadData;
             for (int i = 0; i < dataArray.size(); ++i) {
                 JsonObject dataObject = dataArray.get(i).getAsJsonObject();
                 String linesSql = dataObject.get("totalLinesSql").getAsString();
                 String tableName = dataObject.get("odpsTableName").getAsString();
+                loadData = dataObject.get("load").getAsBoolean();
+                if (!loadData) {
+                    logger.info("No Load Table: " + tableName);
+                    continue;
+                }
+
                 java.sql.ResultSet rs;
                 rs = stmt.executeQuery(linesSql);
                 if (!rs.next()) {
@@ -96,6 +103,10 @@ public class odps {
 
             for (int i = 0; i < dataArray.size(); ++i) {
                 JsonObject dataObject = dataArray.get(i).getAsJsonObject();
+                loadData = dataObject.get("load").getAsBoolean();
+                if (!loadData) {
+                    continue;
+                }
                 long totalLines = dataObject.get("totalLines").getAsInt();
                 for (long offset = 0; offset < totalLines; offset += batchSize) {
                     threadPool.execute(new WorkTask(offset, dataObject, jsonObject, pool, batchSize));
