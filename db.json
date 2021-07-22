@@ -2,7 +2,7 @@
   "threadPoolSize": 10,
   "odps": {
     "accessId": "6eNXuNWem4sPL27u",
-    "accessKey": "SlaMj0S4MnCmQ6618AynKqQupg9Ej8",
+    "accessKey": "SlaMj0S4MnCmQ6618AynKqQ8",
     "jdbcUrl": "jdbc:odps:http://service.cn-deqing-hzjw-d01.odps.cn-deqing-zjzfy01-zjga01.hzs.zj/api?project=stkx_sjzldws_prod",
     "odpsTableName": "odps",
     "partition": "20210705",

@@ -69,7 +69,6 @@ public class odps {
             }
 
             // get table's size
-            int flag = odpsObject.get("maxLinesFlag").getAsInt();
             long maxLines = odpsObject.get("maxLines").getAsLong();
             long lines;
             JsonArray dataArray = jsonObject.get("data").getAsJsonArray();
@@ -84,8 +83,9 @@ public class odps {
                     dataObject.addProperty("totalLines", 0);
                     continue;
                 }
-                lines = rs.getInt(1);
-                if (flag == 1 && lines > maxLines) {
+                lines = rs.getLong(1);
+                if (maxLines != 0 && lines > maxLines) {
+                    logger.info("Table :{}, true lines : {}", tableName, lines);
                     lines = maxLines;
                 }
                 logger.info("Table {} , total lines : {}", tableName, lines);

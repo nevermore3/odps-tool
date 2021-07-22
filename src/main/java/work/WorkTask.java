@@ -50,7 +50,7 @@ public class WorkTask implements Runnable {
                     logger.error(resp.getErrorMessage());
                     logger.error("Run " + ngql);
                 }
-                logger.info("Insert Vertex: {}, Size: {}", tagType, size);
+//                logger.info("Insert Vertex: {}, Size: {}", tagType, size);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -82,7 +82,7 @@ public class WorkTask implements Runnable {
                     logger.error(resp.getErrorMessage());
                     logger.error("Run " + ngql);
                 }
-                logger.info("Insert Edge: {}, Size: {}", edgeType, size);
+//                logger.info("Insert Edge: {}, Size: {}", edgeType, size);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -117,22 +117,29 @@ public class WorkTask implements Runnable {
                     String id1 = rs.getString("id1");
                     String id2_type = rs.getString("id2_type");
                     String id2 = rs.getString("id2");
-                    if (tagMap.containsKey(id1_type)) {
-                        Set<String> id1Set = tagMap.get(id1_type);
-                        id1Set.add(id1);
-                    } else {
-                        Set<String> id1Set = new HashSet<>();
-                        id1Set.add(id1);
-                        tagMap.put(id1_type, id1Set);
+                    if (id1 != null && !id1.contains("'")) {
+                        if (tagMap.containsKey(id1_type)) {
+                            Set<String> id1Set = tagMap.get(id1_type);
+                            id1Set.add(id1);
+                        } else {
+                            Set<String> id1Set = new HashSet<>();
+                            id1Set.add(id1);
+                            tagMap.put(id1_type, id1Set);
+                        }
                     }
 
-                    if (tagMap.containsKey(id2_type)) {
-                        Set<String> id2Set = tagMap.get(id2_type);
-                        id2Set.add(id2);
-                    } else {
-                        Set<String> id2Set = new HashSet<>();
-                        id2Set.add(id2);
-                        tagMap.put(id2_type, id2Set);
+                    if (id2 != null && !id2.contains("'")) {
+                        if (tagMap.containsKey(id2_type)) {
+                            Set<String> id2Set = tagMap.get(id2_type);
+                            id2Set.add(id2);
+                        } else {
+                            Set<String> id2Set = new HashSet<>();
+                            id2Set.add(id2);
+                            tagMap.put(id2_type, id2Set);
+                        }
+                    }
+                    if (id1 == null || id2 == null || id1.contains("'") || id2.contains("'")) {
+                        continue;
                     }
 
                     // process edge
@@ -143,6 +150,7 @@ public class WorkTask implements Runnable {
                     String rank = rs.getString("rank");
                     if (rank == null) {
                         logger.error("rank error, begin is : " + begin);
+                        continue;
                     }
 
 
