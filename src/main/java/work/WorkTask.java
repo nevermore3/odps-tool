@@ -137,6 +137,12 @@ public class WorkTask implements Runnable {
                         }
                     }
                     if (id1 == null || id2 == null || id1.contains("'") || id2.contains("'")) {
+                        if (id1.contains("'")) {
+                            logger.error("id1 error " + id1);
+                        }
+                        if (id2.contains("'")) {
+                            logger.error("id2 error " + id2);
+                        }
                         continue;
                     }
 
