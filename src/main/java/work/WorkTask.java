@@ -31,7 +31,6 @@ public class WorkTask implements Runnable {
         this.batchSize = batchSize;
     }
 
-
     private void insertTag(Map<String, Set<String>> tagMap) {
         long startTime = System.currentTimeMillis();
         try {
@@ -90,13 +89,11 @@ public class WorkTask implements Runnable {
             Thread t = Thread.currentThread();
             logger.info("EDGE ThreadID: {}, OFFSET: {}, Time: {}", t.getId(), offset, ((endTime - startTime) + "ms"));
         }
-
     }
 
-    private void doWork() {
+    private void splitTag() {
         int insertSize = jsonObject.getAsJsonObject("nebula").get("insertSize").getAsInt();
         String sql = dataObject.get("odpsDataSql").getAsString() + " LIMIT " + offset + "," + batchSize;
-        boolean split = dataObject.get("split").getAsBoolean();
 
         java.sql.ResultSet rs;
         try {
@@ -117,35 +114,119 @@ public class WorkTask implements Runnable {
                     String id2_type = rs.getString("id2_type");
                     String id2 = rs.getString("id2");
                     String begin = rs.getString("gxkssj");
-                    if (id1 != null && !id1.contains("'")) {
-                        if (tagMap.containsKey(id1_type)) {
-                            Set<String> id1Set = tagMap.get(id1_type);
-                            id1Set.add(id1);
-                        } else {
-                            Set<String> id1Set = new HashSet<>();
-                            id1Set.add(id1);
-                            tagMap.put(id1_type, id1Set);
-                        }
+
+                    if (id1 == null || id2 == null || begin == null || id1.contains("'") || id2.contains("'") || begin.contains("'")) {
+                        logger.error("DATA FORMAT ERROR : id1: {}, id2: {}, begin: {}", id1, id2, begin);
+                        continue;
                     }
 
-                    if (id2 != null && !id2.contains("'")) {
-                        if (tagMap.containsKey(id2_type)) {
-                            Set<String> id2Set = tagMap.get(id2_type);
-                            id2Set.add(id2);
-                        } else {
-                            Set<String> id2Set = new HashSet<>();
-                            id2Set.add(id2);
-                            tagMap.put(id2_type, id2Set);
-                        }
+                    if (tagMap.containsKey(id1_type)) {
+                        Set<String> id1Set = tagMap.get(id1_type);
+                        id1Set.add(id1);
+                    } else {
+                        Set<String> id1Set = new HashSet<>();
+                        id1Set.add(id1);
+                        tagMap.put(id1_type, id1Set);
                     }
-                    if (id1 == null || id2 == null || id1.contains("'") || id2.contains("'")) {
-                        if (id1.contains("'")) {
-                            logger.error("id1 error " + id1);
-                        }
-                        if (id2.contains("'")) {
-                            logger.error("id2 error " + id2);
-                        }
+                    // vid = id2 + '@' + day
+                    String id2Vid = id2 + '@' + begin.substring(0, 10);
+                    if (tagMap.containsKey(id2_type)) {
+                        Set<String> id2Set = tagMap.get(id2_type);
+                        id2Set.add(id2Vid);
+                    } else {
+                        Set<String> id2Set = new HashSet<>();
+                        id2Set.add(id2Vid);
+                        tagMap.put(id2_type, id2Set);
+                    }
+
+                    // process edge
+                    String type = rs.getString("gxlxdm");
+                    String name = rs.getString("gxlxmc");
+                    String end = rs.getString("gxjssj");
+                    String rank = rs.getString("rank");
+                    if (rank == null) {
+                        logger.error("DATA FORMAT ERROR: rank : " + rank);
                         continue;
+                    }
+
+                    Map<String, String> edgeInfo = new HashMap<>(10);
+                    edgeInfo.put("src",  id1);
+                    edgeInfo.put("dst",  id2Vid);
+                    edgeInfo.put("type", type);
+                    edgeInfo.put("name", name);
+                    edgeInfo.put("begin", begin);
+                    edgeInfo.put("end", end);
+                    edgeInfo.put("rank", rank);
+
+                    if (edgeMap.containsKey(type)) {
+                        Set<Map<String, String>> edgeInfos = edgeMap.get(type);
+                        edgeInfos.add(edgeInfo);
+                    } else {
+                        Set<Map<String, String>> edgeInfos = new HashSet<>();
+                        edgeInfos.add(edgeInfo);
+                        edgeMap.put(type, edgeInfos);
+                    }
+                    insertNum += 1;
+                    if (insertNum == insertSize) {
+                        break;
+                    }
+                } while (rs.next());
+                insertTag(tagMap);
+                insertEdge(edgeMap);
+            } while (rs.next());
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.error(e.getMessage());
+        }
+    }
+
+    private void noSplitTag() {
+        int insertSize = jsonObject.getAsJsonObject("nebula").get("insertSize").getAsInt();
+        String sql = dataObject.get("odpsDataSql").getAsString() + " LIMIT " + offset + "," + batchSize;
+
+        java.sql.ResultSet rs;
+        try {
+            rs = stmt.executeQuery(sql);
+            do {
+                Map<String, Set<String>> tagMap = new HashMap<>(1000);
+                Map<String, Set<Map<String, String>>> edgeMap = new HashMap<>(100);
+                int insertNum = 0;
+                if (!rs.next()) {
+                    logger.info("IT's END!!! offset : " + offset);
+                    return;
+                }
+                // extract tag & edge & insert to tagMap or edgeMap
+                do {
+                    // process tag
+                    String id1_type = rs.getString("id1_type");
+                    String id1 = rs.getString("id1");
+                    String id2_type = rs.getString("id2_type");
+                    String id2 = rs.getString("id2");
+                    String begin = rs.getString("gxkssj");
+
+                    if (id1 == null || id2 == null || begin == null || id1.contains("'") || id2.contains("'") || begin.contains("'")) {
+                        logger.error("DATA FORMAT ERROR : id1: {}, id2: {}, begin: {}", id1, id2, begin);
+                        continue;
+                    }
+
+                    if (tagMap.containsKey(id1_type)) {
+                        Set<String> id1Set = tagMap.get(id1_type);
+                        id1Set.add(id1);
+                    } else {
+                        Set<String> id1Set = new HashSet<>();
+                        id1Set.add(id1);
+                        tagMap.put(id1_type, id1Set);
+                    }
+
+                    if (tagMap.containsKey(id2_type)) {
+                        Set<String> id2Set = tagMap.get(id2_type);
+                        id2Set.add(id2);
+                    } else {
+                        Set<String> id2Set = new HashSet<>();
+                        id2Set.add(id2);
+                        tagMap.put(id2_type, id2Set);
                     }
 
                     // process edge
@@ -180,7 +261,6 @@ public class WorkTask implements Runnable {
                         break;
                     }
                 } while (rs.next());
-
                 insertTag(tagMap);
                 insertEdge(edgeMap);
             } while (rs.next());
@@ -212,7 +292,12 @@ public class WorkTask implements Runnable {
                 logger.error("NEBULA SPACE {} NOT EXISTS", spaceName);
                 System.exit(1);
             }
-            doWork();
+            boolean split = dataObject.get("splitTag").getAsBoolean();
+            if (split) {
+                splitTag();
+            } else {
+                noSplitTag();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             System.out.println(e.getMessage());
@@ -231,10 +316,5 @@ public class WorkTask implements Runnable {
                 session.release();
             }
         }
-    }
-
-    public static String convertToTagName(String name) {
-        String temp = name.replace("-", "_");
-        return "v" + temp;
     }
 }
