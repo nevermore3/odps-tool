@@ -96,6 +96,7 @@ public class WorkTask implements Runnable {
     private void doWork() {
         int insertSize = jsonObject.getAsJsonObject("nebula").get("insertSize").getAsInt();
         String sql = dataObject.get("odpsDataSql").getAsString() + " LIMIT " + offset + "," + batchSize;
+        boolean split = dataObject.get("split").getAsBoolean();
 
         java.sql.ResultSet rs;
         try {
@@ -115,6 +116,7 @@ public class WorkTask implements Runnable {
                     String id1 = rs.getString("id1");
                     String id2_type = rs.getString("id2_type");
                     String id2 = rs.getString("id2");
+                    String begin = rs.getString("gxkssj");
                     if (id1 != null && !id1.contains("'")) {
                         if (tagMap.containsKey(id1_type)) {
                             Set<String> id1Set = tagMap.get(id1_type);
@@ -149,7 +151,6 @@ public class WorkTask implements Runnable {
                     // process edge
                     String type = rs.getString("gxlxdm");
                     String name = rs.getString("gxlxmc");
-                    String begin = rs.getString("gxkssj");
                     String end = rs.getString("gxjssj");
                     String rank = rs.getString("rank");
                     if (rank == null) {
