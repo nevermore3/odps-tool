@@ -24,6 +24,7 @@ public class odps {
 
     public static void main(String[] args) throws SQLException {
         long startTime = System.currentTimeMillis();
+        long allLines = 0;
         try {
             Class.forName(driverName);
         } catch (ClassNotFoundException e) {
@@ -95,6 +96,7 @@ public class odps {
                     logger.info("Table :{}, true lines : {}", tableName, lines);
                     lines = maxLines;
                 }
+                allLines += lines;
                 logger.info("Table {} , total lines : {}", tableName, lines);
                 dataObject.addProperty("totalLines", lines);
             }
@@ -126,7 +128,9 @@ public class odps {
         } finally {
             pool.close();
             long endTime = System.currentTimeMillis();
-            logger.info("OVER ,Total Time: " + ((endTime - startTime) / 1000 + "s"));
+            long allTime = (endTime - startTime) / 1000;
+            logger.info("OVER ,Total Time: " + allTime + "s, TotalLines : " + allLines);
+            logger.info("IMPORT DATA PER SECOND ON AVERAGE: " + (double)allLines / allTime);
         }
     }
 

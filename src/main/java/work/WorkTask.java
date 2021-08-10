@@ -32,7 +32,6 @@ public class WorkTask implements Runnable {
     }
 
     private void insertTag(Map<String, Set<String>> tagMap) {
-        long startTime = System.currentTimeMillis();
         try {
             for (Map.Entry<String, Set<String>> entry : tagMap.entrySet()) {
                 String tagType = entry.getKey();
@@ -53,15 +52,10 @@ public class WorkTask implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
             logger.error(e.getMessage());
-        } finally {
-            long endTime = System.currentTimeMillis();
-            Thread t = Thread.currentThread();
-            logger.info("TAG ThreadID: {}, OFFSET: {}, Time : {}", t.getId(), offset, ((endTime - startTime) + "ms"));
         }
     }
 
     private void insertEdge(Map<String, Set<Map<String, String>>> edgeMap) {
-        long startTime = System.currentTimeMillis();
         try {
             for (Map.Entry<String, Set<Map<String, String>>> entry : edgeMap.entrySet()) {
                 String edgeType = entry.getKey();
@@ -84,10 +78,6 @@ public class WorkTask implements Runnable {
         } catch (Exception e) {
             e.printStackTrace();
             logger.error(e.getMessage());
-        } finally {
-            long endTime = System.currentTimeMillis();
-            Thread t = Thread.currentThread();
-            logger.info("EDGE ThreadID: {}, OFFSET: {}, Time: {}", t.getId(), offset, ((endTime - startTime) + "ms"));
         }
     }
 
@@ -174,8 +164,6 @@ public class WorkTask implements Runnable {
                 insertTag(tagMap);
                 insertEdge(edgeMap);
             } while (rs.next());
-
-
         } catch (Exception e) {
             e.printStackTrace();
             logger.error(e.getMessage());
@@ -272,6 +260,7 @@ public class WorkTask implements Runnable {
 
     @Override
     public void run() {
+        long startTime = System.currentTimeMillis();
         // odps connection
         Connection conn = null;
         try {
@@ -315,6 +304,9 @@ public class WorkTask implements Runnable {
             if (session != null) {
                 session.release();
             }
+            long endTime = System.currentTimeMillis();
+            Thread t = Thread.currentThread();
+            logger.info("ThreadID: {}, OFFSET: {}, Time : {}", t.getId(), offset, ((endTime - startTime) / 1000 + "s"));
         }
     }
 }
